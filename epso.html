@@ -1,0 +1,163 @@
+﻿<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Тренирайте вербално, числово и абстрактно мислене за EPSO с удобен за телефон тест." />
+  <title>Подготовка за тестовете на EPSO</title>
+    <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <div id="setupScreen" class="card">
+      <h1>Подготовка за тестовете на EPSO</h1>
+      <p class="muted">
+        Вербално, числово и абстрактно мислене на български език. 2 474 задачи, случайни тестове и незабавно обяснение при избор на отговор.
+      </p>
+
+      <div class="row">
+        <div class="col">
+          <label for="verbalCount">Въпроси за вербално мислене</label>
+          <input id="verbalCount" type="number" min="0" max="80" value="20" />
+        </div>
+        <div class="col">
+          <label for="numericalCount">Въпроси за числово мислене</label>
+          <input id="numericalCount" type="number" min="0" max="80" value="10" />
+        </div>
+        <div class="col">
+          <label for="abstractCount">Въпроси за абстрактно мислене</label>
+          <input id="abstractCount" type="number" min="0" max="80" value="10" />
+        </div>
+        <div class="col">
+          <label for="minutes">Време (минути)</label>
+          <input id="minutes" type="number" min="5" max="240" value="65" />
+        </div>
+      </div>
+
+      <div class="row settings-row">
+        <div class="col"><label for="questionSource">Въпроси</label><select id="questionSource">
+          <option value="all" selected>Цялата банка — 2 474 въпроса</option>
+          <option value="materials">Само предоставените материали — 74 въпроса</option>
+          <option value="generated">Оригинални упражнения — 2 400 въпроса</option>
+        </select></div>
+        <div class="col"><label for="quizMode">Режим</label><select id="quizMode">
+          <option value="practice" selected>Незабавна обратна връзка при избор</option>
+          <option value="exam">Изпитен режим — решения накрая</option>
+        </select></div>
+      </div>
+      <p id="bankStatus" class="small" aria-live="polite"></p>
+      <p id="setupError" class="error-message hidden" role="alert"></p>
+      <div class="button-row" style="margin-top: 18px;">
+        <button id="startBtn">Започни тест</button>
+        <button id="ad5PresetBtn" class="secondary">20 + 10 + 10 въпроса</button>
+        <button id="quickBtn" class="secondary">Кратка тренировка</button>
+      </div>
+
+      <div class="resources-box">
+        <h3>Материали и официални примери</h3>
+        <div class="small">74 адаптирани задачи от материалите и 2 400 оригинални учебни варианта по 62 модела. Включени са таблици, диаграми, матрици, движения и логически изводи. Примерите на EPSO са използвани за типовете задачи; оригиналните упражнения са обозначени отделно.</div>
+        <ul>
+          <li><a href="https://selection.eu-careers.europa.eu/en/competition-overview" target="_blank" rel="noopener noreferrer">Официален портал за конкурси и процедури за подбор на EPSO</a></li>
+          <li><a href="https://eu-careers.europa.eu/bg" target="_blank" rel="noopener noreferrer">EU Careers — официална информация за работа в институциите на ЕС</a></li>
+          <li><a href="https://selection.eu-careers.europa.eu/en/graduates-administrators-ad5" target="_blank" rel="noopener noreferrer">Официални примери за AD5 — включително връзка BG към платформата</a></li>
+          <li><a href="https://selection.eu-careers.europa.eu/en/accessible-version-sample-tests-ad" target="_blank" rel="noopener noreferrer">Достъпни официални примерни тестове за AD</a></li>
+          <li><a href="materials/SOURCES.md" target="_blank" rel="noopener noreferrer">Списък на използваните материали и редакторски бележки</a></li>
+        </ul>
+      </div>
+
+      <p class="footer-note">
+        Съдържанието на тренировъчните задачи и интерфейсът са на български език.
+      </p>
+    </div>
+
+    <div id="quizScreen" class="card hidden">
+      <div class="topbar">
+        <div>
+          <span class="pill" id="sectionPill">Раздел</span>
+          <span class="pill" id="counterPill">Въпрос 1 / 1</span>
+          <span class="pill" id="scorePill">Точки: 0</span>
+          <span class="pill" id="flagPill">Маркирани: 0</span>
+        </div>
+        <div class="timer" id="timerDisplay">00:00</div>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-bar">
+          <div id="progressFill"></div>
+        </div>
+      </div>
+
+      <div class="question-box">
+        <div class="question-title" id="questionTitle"></div>
+        <div class="question-meta muted" id="questionMeta"></div>
+        <div class="stem" id="questionStem"></div>
+        <div class="options" id="optionsContainer"></div>
+
+        <div id="feedbackBox" class="feedback hidden" tabindex="-1" role="status" aria-live="polite"></div>
+
+        <div class="quiz-actions">
+          <button id="previousBtn" class="secondary">Назад</button>
+          <button id="submitBtn">Запази и продължи</button>
+          <button id="nextBtn" class="secondary hidden">Следващ въпрос</button>
+          <button id="skipBtn" class="secondary">Пропусни</button>
+          <button id="flagBtn" class="secondary">Маркирай</button>
+          <button id="finishBtn" class="secondary">Приключи</button>
+        </div>
+        <div id="questionNavigator" class="question-navigator" aria-label="Навигация по въпроси"></div>
+      </div>
+    </div>
+
+    <div id="resultScreen" class="card hidden">
+      <h2>Тестът приключи</h2>
+      <p class="muted" id="resultSummary"></p>
+
+      <div class="score-grid">
+        <div class="score-box">
+          <h3>Общ резултат</h3>
+          <div id="totalScoreBox">0 / 0</div>
+        </div>
+        <div class="score-box">
+          <h3>Вербално мислене</h3>
+          <div id="verbalScoreBox">0 / 0</div>
+        </div>
+        <div class="score-box">
+          <h3>Числово мислене</h3>
+          <div id="numericalScoreBox">0 / 0</div>
+        </div>
+        <div class="score-box">
+          <h3>Абстрактно мислене</h3>
+          <div id="abstractScoreBox">0 / 0</div>
+        </div>
+      </div>
+
+      <div class="resources-box">
+        <h3>Насоки за подготовка</h3>
+        <div id="coachingText" class="small">Завършете тест, за да получите насоки за областите, върху които да се съсредоточите.</div>
+      </div>
+
+      <div class="button-row" style="margin-top: 18px;">
+        <button id="restartBtn">Нов тест</button>
+        <button id="reviewBtn" class="secondary">Преглед на отговорите</button>
+        <button id="exportBtn" class="secondary">Изтегли резултата (CSV)</button>
+      </div>
+    </div>
+
+    <div id="reviewScreen" class="card hidden">
+      <h2>Преглед на отговорите</h2>
+      <label for="reviewFilter">Покажи</label><select id="reviewFilter"><option value="all">Всички въпроси</option><option value="wrong">Грешни и пропуснати</option><option value="flagged">Маркирани</option></select>
+      <div id="reviewContainer"></div>
+      <div class="button-row" style="margin-top: 18px;">
+        <button id="backToResultsBtn" class="secondary">Към резултатите</button>
+      </div>
+    </div>
+  </div>
+
+    <script charset="utf-8" src="./js/materials-bank.js"></script>
+    <script charset="utf-8" src="./js/expanded-bank.js"></script>
+    <script charset="utf-8" src="./js/bank-store.js"></script>
+    <script charset="utf-8" src="./js/app.js"></script>
+    <script charset="utf-8" src="./js/extra-abstract.js"></script>
+    <script charset="utf-8" src="./js/quiz-ui.js"></script>
+</body>
+</html>
