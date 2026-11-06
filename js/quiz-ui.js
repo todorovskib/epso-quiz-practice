@@ -65,7 +65,7 @@ function makeWordsTranslatable(container) {
         if (opening) {
           setWordTooltip(button, translationCache.get(word) || "Зарежда се превод…");
           translateWord(word, button);
-        }
+        } else button.querySelector(".word-tooltip").classList.remove("visible");
       });
       button.addEventListener("keydown", event => {
         if (event.key !== "Enter" && event.key !== " ") return;
@@ -81,7 +81,7 @@ function makeWordsTranslatable(container) {
       button.addEventListener("pointerleave", event => {
         if (event.pointerType !== "mouse") return;
         button.classList.remove("is-hovered");
-        hideWordTooltip(button);
+        hideWordTooltip(button, true);
       });
       button.addEventListener("focus", () => {
         setWordTooltip(button, translationCache.get(word) || "Зарежда се превод…");
@@ -120,8 +120,9 @@ function setWordTooltip(word, text) {
   positionWordTooltip(word);
 }
 
-function hideWordTooltip(word) {
-  if (word.classList.contains("is-open") || word.classList.contains("is-hovered") || word.matches(":focus")) return;
+function hideWordTooltip(word, force = false) {
+  if (word.classList.contains("is-open")) return;
+  if (!force && (word.classList.contains("is-hovered") || word.matches(":focus"))) return;
   word.querySelector(".word-tooltip").classList.remove("visible");
 }
 
@@ -130,7 +131,7 @@ function closeWordTooltips(except = null) {
     if (word === except) return;
     word.classList.remove("is-open");
     word.setAttribute("aria-expanded", "false");
-    hideWordTooltip(word);
+    hideWordTooltip(word, true);
   });
 }
 
