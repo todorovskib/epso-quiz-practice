@@ -12,7 +12,7 @@ The default **Цялата банка** selects from all questions. You can also
 
 **Незабавна обратна връзка при избор** is the default: clicking an answer immediately grades and locks it, displays why it is right or wrong, and offers **Следващ въпрос**. There is no confirmation step. Optional **Изпитен режим** keeps answers hidden until submission. Pupils can navigate, flag, skip, and revisit questions. Reviews include unanswered questions and diagrams. Results can be downloaded as a UTF-8 CSV file for the teacher.
 
-On a computer, hover over a Bulgarian word in a question or explanation to see its English translation; on a phone, tap the word. Click or tap a word to pin its translation until you click or tap elsewhere. Keyboard users can focus a word and press Enter or Space.
+On a computer, hover over a Bulgarian word in a question or explanation to see its English translation; on a phone, tap the word. The full sentence is translated for context, but only the clicked word's English equivalent appears. Click or tap a word to pin its translation until you click or tap elsewhere. Keyboard users can focus a word and press Enter or Space.
 
 IndexedDB caches the question bank locally and stores selection history. Local storage also retains history across page reloads. If browser storage is blocked, the bundled bank still works and history lasts for the current tab. Quiz answers and scores are not stored as permanent pupil records; export results before refreshing.
 

@@ -45,6 +45,7 @@ function makeWordsTranslatable(container) {
       const button = document.createElement("span");
       button.className = "translatable-word";
       button.textContent = word;
+      button.dataset.word = word;
       button.setAttribute("role", "button");
       button.setAttribute("tabindex", "0");
       button.setAttribute("aria-label", `Преведи „${word}“ на английски`);
@@ -63,8 +64,9 @@ function makeWordsTranslatable(container) {
         button.classList.toggle("is-open", opening);
         button.setAttribute("aria-expanded", String(opening));
         if (opening) {
-          setWordTooltip(button, translationCache.get(word) || "Зарежда се превод…");
-          translateWord(word, button);
+          const context = getTranslationContext(button);
+          setWordTooltip(button, translationCache.get(context.key) || "Зарежда се превод в контекст…");
+          translateWord(context, button);
         } else button.querySelector(".word-tooltip").classList.remove("visible");
       });
       button.addEventListener("keydown", event => {
@@ -75,8 +77,9 @@ function makeWordsTranslatable(container) {
       button.addEventListener("pointerenter", event => {
         if (event.pointerType !== "mouse") return;
         button.classList.add("is-hovered");
-        setWordTooltip(button, translationCache.get(word) || "Зарежда се превод…");
-        translateWord(word, button);
+        const context = getTranslationContext(button);
+        setWordTooltip(button, translationCache.get(context.key) || "Зарежда се превод в контекст…");
+        translateWord(context, button);
       });
       button.addEventListener("pointerleave", event => {
         if (event.pointerType !== "mouse") return;
@@ -84,8 +87,9 @@ function makeWordsTranslatable(container) {
         hideWordTooltip(button, true);
       });
       button.addEventListener("focus", () => {
-        setWordTooltip(button, translationCache.get(word) || "Зарежда се превод…");
-        translateWord(word, button);
+        const context = getTranslationContext(button);
+        setWordTooltip(button, translationCache.get(context.key) || "Зарежда се превод в контекст…");
+        translateWord(context, button);
       });
       button.addEventListener("blur", () => {
         hideWordTooltip(button);
@@ -96,6 +100,75 @@ function makeWordsTranslatable(container) {
     fragment.append(document.createTextNode(text.slice(offset)));
     textNode.replaceWith(fragment);
   });
+}
+
+function getTranslationContext(trigger) {
+  const block = trigger.closest("p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6")
+    || trigger.closest(".stem, .feedback, .review-card")
+    || trigger.parentElement;
+  let rawText = "";
+  let selectedOffset = -1;
+
+  function collectText(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (node.parentElement?.closest(".word-tooltip")) return;
+      if (selectedOffset === -1 && node.parentElement?.closest(".translatable-word") === trigger) {
+        selectedOffset = rawText.length;
+      }
+      rawText += node.nodeValue;
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE || node.classList.contains("word-tooltip")) return;
+    if (node.tagName === "BR") {
+      rawText += " ";
+      return;
+    }
+    const blockTags = new Set(["BLOCKQUOTE", "DIV", "H1", "H2", "H3", "H4", "H5", "H6", "LI", "P", "TD", "TH"]);
+    const isBlock = node !== block && blockTags.has(node.tagName);
+    if (isBlock && rawText && !/\s$/.test(rawText)) rawText += " ";
+    node.childNodes.forEach(collectText);
+    if (isBlock && rawText && !/\s$/.test(rawText)) rawText += " ";
+  }
+
+  collectText(block);
+  const text = rawText.replace(/\s+/gu, " ").trim();
+  if (!text || selectedOffset < 0) throw new Error("Unable to find the word's sentence");
+  const wordOffset = rawText.slice(0, selectedOffset).replace(/\s+/gu, " ").trimStart().length;
+  let sentenceStart = 0;
+  let sentenceEnd = text.length;
+
+  if (typeof Intl.Segmenter === "function") {
+    const sentences = new Intl.Segmenter("bg", { granularity: "sentence" }).segment(text);
+    for (const sentence of sentences) {
+      if (sentence.index <= wordOffset && wordOffset < sentence.index + sentence.segment.length) {
+        sentenceStart = sentence.index;
+        sentenceEnd = sentence.index + sentence.segment.length;
+        break;
+      }
+    }
+  } else {
+    const boundaries = /[.!?…]+(?:["'»”’)]*)\s+/gu;
+    for (const match of text.matchAll(boundaries)) {
+      if (match.index + match[0].length > wordOffset) {
+        sentenceEnd = match.index + match[0].length;
+        break;
+      }
+      sentenceStart = match.index + match[0].length;
+    }
+  }
+
+  const sentence = text.slice(sentenceStart, sentenceEnd).trim();
+  const localWordOffset = wordOffset - sentenceStart;
+  const word = trigger.dataset.word;
+  if (sentence.slice(localWordOffset, localWordOffset + word.length) !== word) {
+    throw new Error("Unable to locate the selected word in its sentence");
+  }
+  return {
+    key: `${sentence}\u0000${localWordOffset}`,
+    sentence,
+    word,
+    wordOffset: localWordOffset
+  };
 }
 
 function positionWordTooltip(word) {
@@ -135,40 +208,52 @@ function closeWordTooltips(except = null) {
   });
 }
 
-function showTranslationError(word, output) {
+function showTranslationError(word, sentence, output) {
   output.replaceChildren();
-  output.append(document.createTextNode(`Преводът на „${word}“ не е наличен. Проверете връзката или опитайте `));
+  output.append(document.createTextNode(`Контекстният превод на „${word}“ не е наличен. Проверете връзката или опитайте `));
   const link = document.createElement("a");
-  link.href = `https://translate.google.com/?sl=bg&tl=en&text=${encodeURIComponent(word)}&op=translate`;
+  link.href = `https://translate.google.com/?sl=bg&tl=en&text=${encodeURIComponent(sentence)}&op=translate`;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
   link.textContent = "Google Translate";
   output.append(link, document.createTextNode("."));
 }
 
-async function translateWord(word, trigger) {
+async function translateWord(context, trigger) {
+  const { key, sentence, word, wordOffset } = context;
   const output = ui.reviewScreen.classList.contains("hidden") ? ui.wordTranslation : ui.reviewWordTranslation;
   try {
-    let translation = translationCache.get(word);
+    let translation = translationCache.get(key);
     if (!translation) {
-      let request = pendingTranslations.get(word);
+      let request = pendingTranslations.get(key);
       if (!request) {
-        const params = new URLSearchParams({ q: word, langpair: "bg|en" });
+        const markerId = ++translationTooltipSequence;
+        const startMarker = `ZXQSTART${markerId}TOKEN`;
+        const endMarker = `ZXQEND${markerId}TOKEN`;
+        const markedSentence = `${sentence.slice(0, wordOffset)}${startMarker} ${word} ${endMarker}${sentence.slice(wordOffset + word.length)}`;
+        const params = new URLSearchParams({ q: markedSentence, langpair: "bg|en" });
         request = fetch(`https://api.mymemory.translated.net/get?${params}`)
           .then(response => {
             if (!response.ok) throw new Error(`Translation service returned ${response.status}`);
             return response.json();
           })
           .then(result => {
-            const translated = result.responseData?.translatedText?.trim();
-            if (Number(result.responseStatus) !== 200 || !translated) {
+            const translatedSentence = result.responseData?.translatedText;
+            if (Number(result.responseStatus) !== 200 || typeof translatedSentence !== "string") {
               throw new Error("Translation service returned no translation");
             }
-            translationCache.set(word, translated);
-            return translated;
+            const start = translatedSentence.indexOf(startMarker);
+            const end = translatedSentence.indexOf(endMarker, start + startMarker.length);
+            if (start < 0 || end < 0) throw new Error("Translation service did not preserve the word markers");
+            const translatedWord = translatedSentence.slice(start + startMarker.length, end)
+              .replace(/^[\s.,;:!?'"“”()]+|[\s.,;:!?'"“”()]+$/gu, "")
+              .trim();
+            if (!translatedWord) throw new Error("Translation service returned no contextual word");
+            translationCache.set(key, translatedWord);
+            return translatedWord;
           })
-          .finally(() => pendingTranslations.delete(word));
-        pendingTranslations.set(word, request);
+          .finally(() => pendingTranslations.delete(key));
+        pendingTranslations.set(key, request);
       }
       translation = await request;
     }
@@ -181,7 +266,7 @@ async function translateWord(word, trigger) {
     if (!trigger.isConnected) return;
     setWordTooltip(trigger, "Преводът не е наличен");
     output.classList.remove("hidden");
-    showTranslationError(word, output);
+    showTranslationError(word, sentence, output);
   }
 }
 
