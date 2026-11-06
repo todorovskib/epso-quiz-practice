@@ -12,6 +12,8 @@ The default **Цялата банка** selects from all questions. You can also
 
 **Незабавна обратна връзка при избор** is the default: clicking an answer immediately grades and locks it, displays why it is right or wrong, and offers **Следващ въпрос**. There is no confirmation step. Optional **Изпитен режим** keeps answers hidden until submission. Pupils can navigate, flag, skip, and revisit questions. Reviews include unanswered questions and diagrams. Results can be downloaded as a UTF-8 CSV file for the teacher.
 
+On a computer, hover over a Bulgarian word in a question or explanation to see its English translation; on a phone, tap the word. The tooltip stays open until you tap elsewhere (or move the mouse away). Clicked or focused words can also be opened with Enter or Space.
+
 IndexedDB caches the question bank locally and stores selection history. Local storage also retains history across page reloads. If browser storage is blocked, the bundled bank still works and history lasts for the current tab. Quiz answers and scores are not stored as permanent pupil records; export results before refreshing.
 
 The 20/10/10 preset uses a 65-minute shared training timer. Official EPSO testing can use separate section timers and restrict returning to submitted sections. This local quiz does not enforce those restrictions. Answers exist in the client files, so this is a classroom practice tool, not a secure examination service. Results remain in the current browser tab until exported; refreshing starts a new session.

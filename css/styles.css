@@ -179,6 +179,62 @@
       white-space: pre-wrap;
     }
 
+    .translation-hint {
+      margin: -6px 0 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .word-translation {
+      margin: -4px 0 16px;
+      padding: 10px 12px;
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      background: rgba(56, 189, 248, 0.08);
+    }
+
+    .word-translation a {
+      color: #93c5fd;
+    }
+
+    .translatable-word {
+      display: inline-block;
+      position: relative;
+      text-decoration: underline dotted var(--muted);
+      text-underline-offset: 3px;
+      cursor: help;
+      touch-action: manipulation;
+    }
+
+    .translatable-word:hover {
+      color: var(--accent);
+    }
+
+    .word-tooltip {
+      position: fixed;
+      z-index: 20;
+      display: none;
+      width: max-content;
+      max-width: min(280px, calc(100vw - 24px));
+      padding: 9px 12px;
+      border: 1px solid #475569;
+      border-radius: 9px;
+      background: #0b1220;
+      color: var(--text);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 1.4;
+      text-align: center;
+      text-decoration: none;
+      white-space: normal;
+      pointer-events: none;
+    }
+
+    .word-tooltip.visible {
+      display: block;
+    }
+
     .options {
       display: grid;
       gap: 10px;

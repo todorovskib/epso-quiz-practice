@@ -5,16 +5,19 @@ const ui = Object.fromEntries([
   "abstractCount", "minutes", "questionSource", "quizMode", "bankStatus", "setupError", "startBtn",
   "ad5PresetBtn", "quickBtn", "restartBtn", "reviewBtn", "backToResultsBtn", "sectionPill",
   "counterPill", "scorePill", "flagPill", "timerDisplay", "progressFill", "questionTitle",
-  "questionMeta", "questionStem", "optionsContainer", "feedbackBox", "submitBtn", "nextBtn",
+  "questionMeta", "questionStem", "wordTranslation", "optionsContainer", "feedbackBox", "submitBtn", "nextBtn",
   "previousBtn", "skipBtn", "flagBtn", "finishBtn", "questionNavigator", "resultSummary",
   "totalScoreBox", "verbalScoreBox", "numericalScoreBox", "abstractScoreBox", "coachingText",
-  "reviewContainer", "reviewFilter", "exportBtn"
+  "reviewContainer", "reviewFilter", "reviewWordTranslation", "exportBtn"
 ].map(id => [id, document.getElementById(id)]));
 
 let selections = [];
 let confirmed = new Set();
 let deadline = 0;
 let examFinished = true;
+const translationCache = new Map();
+const pendingTranslations = new Map();
+let translationTooltipSequence = 0;
 
 function showScreen(name) {
   ["setupScreen", "quizScreen", "resultScreen", "reviewScreen"].forEach(id => ui[id].classList.toggle("hidden", id !== name));
@@ -24,6 +27,174 @@ function questionMarkup(q) {
   const image = q.image ? `<div class="question-image-wrap"><img class="question-image ${q.source?.file.endsWith("docx") ? "docx" : ""}" src="${q.image}" alt="${escapeHtml(q.imageAlt)}"></div><a class="image-link" href="${q.image}" target="_blank" rel="noopener">Отвори фигурите в пълен размер</a>` : "";
   return (q.stemHtml || escapeHtml(q.stem)) + image;
 }
+
+function makeWordsTranslatable(container) {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  textNodes.forEach(textNode => {
+    const text = textNode.nodeValue;
+    const words = [...text.matchAll(/[\p{Script=Cyrillic}\p{M}]+/gu)];
+    if (!words.length) return;
+    const fragment = document.createDocumentFragment();
+    let offset = 0;
+    words.forEach(match => {
+      fragment.append(document.createTextNode(text.slice(offset, match.index)));
+      const word = match[0];
+      const button = document.createElement("span");
+      button.className = "translatable-word";
+      button.textContent = word;
+      button.setAttribute("role", "button");
+      button.setAttribute("tabindex", "0");
+      button.setAttribute("aria-label", `Преведи „${word}“ на английски`);
+      button.setAttribute("aria-expanded", "false");
+      const tooltip = document.createElement("span");
+      tooltip.className = "word-tooltip";
+      tooltip.id = `word-tooltip-${++translationTooltipSequence}`;
+      tooltip.setAttribute("role", "tooltip");
+      button.setAttribute("aria-describedby", tooltip.id);
+      button.append(tooltip);
+      button.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const opening = button.getAttribute("aria-expanded") !== "true";
+        closeWordTooltips(button);
+        button.classList.toggle("is-open", opening);
+        button.setAttribute("aria-expanded", String(opening));
+        if (opening) {
+          setWordTooltip(button, translationCache.get(word) || "Зарежда се превод…");
+          translateWord(word, button);
+        }
+      });
+      button.addEventListener("keydown", event => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        button.click();
+      });
+      button.addEventListener("pointerenter", event => {
+        if (event.pointerType !== "mouse") return;
+        button.classList.add("is-hovered");
+        setWordTooltip(button, translationCache.get(word) || "Зарежда се превод…");
+        translateWord(word, button);
+      });
+      button.addEventListener("pointerleave", event => {
+        if (event.pointerType !== "mouse") return;
+        button.classList.remove("is-hovered");
+        hideWordTooltip(button);
+      });
+      button.addEventListener("focus", () => {
+        setWordTooltip(button, translationCache.get(word) || "Зарежда се превод…");
+        translateWord(word, button);
+      });
+      button.addEventListener("blur", () => {
+        hideWordTooltip(button);
+      });
+      fragment.append(button);
+      offset = match.index + word.length;
+    });
+    fragment.append(document.createTextNode(text.slice(offset)));
+    textNode.replaceWith(fragment);
+  });
+}
+
+function positionWordTooltip(word) {
+  const tooltip = word.querySelector(".word-tooltip");
+  if (!tooltip?.classList.contains("visible")) return;
+  const wordRect = word.getBoundingClientRect();
+  const tooltipRect = tooltip.getBoundingClientRect();
+  const halfWidth = tooltipRect.width / 2;
+  const left = Math.min(window.innerWidth - halfWidth - 12, Math.max(halfWidth + 12, wordRect.left + wordRect.width / 2));
+  let top = wordRect.bottom + 8;
+  if (top + tooltipRect.height > window.innerHeight - 8 && wordRect.top - tooltipRect.height - 8 >= 8) {
+    top = wordRect.top - tooltipRect.height - 8;
+  }
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
+}
+
+function setWordTooltip(word, text) {
+  const tooltip = word.querySelector(".word-tooltip");
+  tooltip.textContent = text;
+  tooltip.classList.add("visible");
+  positionWordTooltip(word);
+}
+
+function hideWordTooltip(word) {
+  if (word.classList.contains("is-open") || word.classList.contains("is-hovered") || word.matches(":focus")) return;
+  word.querySelector(".word-tooltip").classList.remove("visible");
+}
+
+function closeWordTooltips(except = null) {
+  document.querySelectorAll(".translatable-word.is-open").forEach(word => {
+    if (word === except) return;
+    word.classList.remove("is-open");
+    word.setAttribute("aria-expanded", "false");
+    hideWordTooltip(word);
+  });
+}
+
+function showTranslationError(word, output) {
+  output.replaceChildren();
+  output.append(document.createTextNode(`Преводът на „${word}“ не е наличен. Проверете връзката или опитайте `));
+  const link = document.createElement("a");
+  link.href = `https://translate.google.com/?sl=bg&tl=en&text=${encodeURIComponent(word)}&op=translate`;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = "Google Translate";
+  output.append(link, document.createTextNode("."));
+}
+
+async function translateWord(word, trigger) {
+  const output = ui.reviewScreen.classList.contains("hidden") ? ui.wordTranslation : ui.reviewWordTranslation;
+  try {
+    let translation = translationCache.get(word);
+    if (!translation) {
+      let request = pendingTranslations.get(word);
+      if (!request) {
+        const params = new URLSearchParams({ q: word, langpair: "bg|en" });
+        request = fetch(`https://api.mymemory.translated.net/get?${params}`)
+          .then(response => {
+            if (!response.ok) throw new Error(`Translation service returned ${response.status}`);
+            return response.json();
+          })
+          .then(result => {
+            const translated = result.responseData?.translatedText?.trim();
+            if (Number(result.responseStatus) !== 200 || !translated) {
+              throw new Error("Translation service returned no translation");
+            }
+            translationCache.set(word, translated);
+            return translated;
+          })
+          .finally(() => pendingTranslations.delete(word));
+        pendingTranslations.set(word, request);
+      }
+      translation = await request;
+    }
+    if (!trigger.isConnected) return;
+    setWordTooltip(trigger, translation);
+    trigger.setAttribute("aria-label", `${word}: ${translation}`);
+    output.classList.add("hidden");
+    output.textContent = "";
+  } catch {
+    if (!trigger.isConnected) return;
+    setWordTooltip(trigger, "Преводът не е наличен");
+    output.classList.remove("hidden");
+    showTranslationError(word, output);
+  }
+}
+
+document.addEventListener("click", event => {
+  if (!event.target.closest?.(".translatable-word")) closeWordTooltips();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") closeWordTooltips();
+});
+const repositionWordTooltips = () => {
+  document.querySelectorAll(".word-tooltip.visible").forEach(tooltip => positionWordTooltip(tooltip.parentElement));
+};
+window.addEventListener("resize", repositionWordTooltips);
+window.addEventListener("scroll", repositionWordTooltips, true);
 
 function refreshSetup() {
   const counts = window.EPSO_BANK.stats(ui.questionSource.value);
@@ -103,6 +274,8 @@ function renderNavigation() {
 
 function loadQuestion() {
   const q = exam[currentIndex];
+  ui.wordTranslation.textContent = "";
+  ui.wordTranslation.classList.add("hidden");
   selectedOptionIndex = selections[currentIndex];
   answeredCurrent = confirmed.has(currentIndex);
   const practice = activeConfig.mode === "practice";
@@ -117,6 +290,7 @@ function loadQuestion() {
   ui.questionMeta.textContent = `${q.format === "legacy" ? "По-стар формат: вярно / невярно / не може да се каже. " : "Един правилен отговор. "}${q.sourceTag}`;
   ui.questionStem.innerHTML = questionMarkup(q);
   ui.questionStem.lang = "bg";
+  makeWordsTranslatable(ui.questionStem);
   ui.optionsContainer.replaceChildren();
   ui.optionsContainer.classList.toggle("visual-choices", Boolean(q.image));
   ui.optionsContainer.setAttribute("role", "radiogroup");
@@ -165,6 +339,7 @@ function showFeedback(q) {
     ${correct ? "" : `<p><strong>За вашия избор:</strong> ${escapeHtml(q.optionRationales[selected])}</p>`}
     <p class="explanation">${escapeHtml(q.explanation)}</p>
     <details><summary>Обяснение за всеки вариант</summary><ul>${q.options.map((option, i) => `<li><strong>${String.fromCharCode(65 + i)}. ${escapeHtml(optionPlain(option))}</strong>: ${escapeHtml(q.optionRationales[i])}</li>`).join("")}</ul></details>`;
+  makeWordsTranslatable(ui.feedbackBox);
 }
 
 function advance() {
@@ -224,6 +399,8 @@ function finishExam(timeExpired) {
 
 function openReview() {
   showScreen("reviewScreen");
+  ui.reviewWordTranslation.textContent = "";
+  ui.reviewWordTranslation.classList.add("hidden");
   const filter = ui.reviewFilter.value;
   const answers = results.answers.filter(item => filter === "all" || filter === "wrong" && !item.isCorrect || filter === "flagged" && item.flagged);
   ui.reviewContainer.innerHTML = answers.map(({ q, questionNumber, selected, isCorrect, flagged }) => `<article class="review-card" lang="bg">
@@ -235,6 +412,8 @@ function openReview() {
     ${selected !== null && !isCorrect ? `<p>${escapeHtml(q.optionRationales[selected])}</p>` : ""}
     <p class="explanation">${escapeHtml(q.explanation)}</p><div class="small">${escapeHtml(q.sourceTag)}</div>
     </article>`).join("") || "<p>Няма въпроси за този филтър.</p>";
+  makeWordsTranslatable(ui.reviewContainer);
+  ui.reviewContainer.lang = "bg";
 }
 
 function exportResults() {
